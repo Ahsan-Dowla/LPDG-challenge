@@ -1,0 +1,34 @@
+# Challenge data — never commit
+data/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Outputs / submissions
+predictions.csv
+*.csv
+!data/*.csv
+
+# Baseline & validation scripts (not part of initial commit scope)
+baseline_3sigma.py
+validate_submission.py
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
