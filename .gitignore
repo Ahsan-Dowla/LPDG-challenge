@@ -1,34 +1,58 @@
-# Challenge data — never commit
+# =========================
+# Challenge data
+# =========================
 data/
 
-# Virtual environment
-venv/
-.venv/
-env/
-
-# Python cache
+# =========================
+# Python
+# =========================
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 .Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Outputs / submissions
+# =========================
+# Virtual environments
+# =========================
+venv/
+.venv/
+env/
+
+# =========================
+# Environment / secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Generated outputs
+# =========================
 predictions.csv
-*.csv
-!data/*.csv
+predictions_*.csv
 
-# Baseline & validation scripts (not part of initial commit scope)
-baseline_3sigma.py
-validate_submission.py
+# =========================
+# Logs / runtime files
+# =========================
+*.log
+logs/
 
-# Jupyter notebooks checkpoints
-.ipynb_checkpoints/
-
-# OS / editor
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
+# =========================
+# IDE / OS junk
+# =========================
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.temp
+*.swp
+.ipynb_checkpoints/
