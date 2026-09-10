@@ -50,9 +50,12 @@ logs/
 Thumbs.db
 
 # =========================
-# Temporary files
+# Temporary files / scratch
 # =========================
 *.tmp
 *.temp
 *.swp
 .ipynb_checkpoints/
+_explore*.py
+explore_output.txt
+gm_output.txt
