@@ -63,10 +63,19 @@ def evaluate_predictions(pred_path: Path, data_dir: Path) -> dict[str, object]:
     preds["last_read_rate"] = preds["gateway_id"].map(last_mrs)
     preds["n_meters"] = preds["gateway_id"].map(meter_map).fillna(0)
 
+    # Visit-level metrics (across all 120 slots)
     n_schlecht = int((preds["kategorie"] == "Schlecht").sum())
     n_normal = int((preds["kategorie"] == "Normal").sum())
     n_unreviewed = int(preds["kategorie"].isna().sum())
     sn_ratio = (n_schlecht / n_normal) if n_normal > 0 else float("inf")
+
+    # Unique-gateway metrics
+    unique_gws = preds.drop_duplicates(subset=["gateway_id"])
+    n_unique_gws = len(unique_gws)
+    u_schlecht = int((unique_gws["kategorie"] == "Schlecht").sum())
+    u_normal = int((unique_gws["kategorie"] == "Normal").sum())
+    u_unreviewed = int(unique_gws["kategorie"].isna().sum())
+    u_sn_ratio = (u_schlecht / u_normal) if u_normal > 0 else float("inf")
 
     mean_read = float(preds["last_read_rate"].dropna().mean()) if not preds["last_read_rate"].dropna().empty else 0.0
     read_sub_90 = int((preds["last_read_rate"] < 0.90).sum())
@@ -77,10 +86,15 @@ def evaluate_predictions(pred_path: Path, data_dir: Path) -> dict[str, object]:
     return {
         "file": pred_path.name,
         "total_rows": total_rows,
+        "n_unique_gws": n_unique_gws,
         "n_schlecht": n_schlecht,
         "n_normal": n_normal,
         "n_unreviewed": n_unreviewed,
         "sn_ratio": sn_ratio,
+        "u_schlecht": u_schlecht,
+        "u_normal": u_normal,
+        "u_unreviewed": u_unreviewed,
+        "u_sn_ratio": u_sn_ratio,
         "mean_read_rate": mean_read,
         "reads_below_90pct": read_sub_90,
         "reads_below_80pct": read_sub_80,
@@ -91,12 +105,21 @@ def evaluate_predictions(pred_path: Path, data_dir: Path) -> dict[str, object]:
 
 def print_metrics(m: dict[str, object]) -> None:
     print(f"=== Evaluation: {m['file']} ===")
-    print(f"Total rows:             {m['total_rows']}")
-    print(f"Engineer 'Schlecht':    {m['n_schlecht']}")
-    print(f"Engineer 'Normal':      {m['n_normal']}")
-    print(f"Engineer Unreviewed:    {m['n_unreviewed']}")
+    print(f"Total rows (Visits):    {m['total_rows']}")
+    print(f"Unique Gateways:        {m['n_unique_gws']}")
+    print(f"--- Visit-Level Metrics ---")
+    print(f"  Engineer 'Schlecht':  {m['n_schlecht']}")
+    print(f"  Engineer 'Normal':    {m['n_normal']}")
+    print(f"  Engineer Unreviewed:  {m['n_unreviewed']}")
     sn_str = f"{m['sn_ratio']:.2f}" if m['sn_ratio'] != float("inf") else "inf"
-    print(f"Signal-to-Noise (S/N):  {sn_str}")
+    print(f"  Signal-to-Noise (S/N):{sn_str}")
+    print(f"--- Unique-Gateway Metrics ---")
+    print(f"  Unique 'Schlecht':    {m['u_schlecht']}")
+    print(f"  Unique 'Normal':      {m['u_normal']}")
+    print(f"  Unique Unreviewed:    {m['u_unreviewed']}")
+    u_sn_str = f"{m['u_sn_ratio']:.2f}" if m['u_sn_ratio'] != float("inf") else "inf"
+    print(f"  Unique S/N Ratio:     {u_sn_str}")
+    print(f"--- Operational & Downstream Metrics ---")
     print(f"Mean Last Read Rate:    {m['mean_read_rate']:.4f}")
     print(f"Visits with Read < 90%: {m['reads_below_90pct']} / {m['total_rows']}")
     print(f"Visits with Read < 80%: {m['reads_below_80pct']} / {m['total_rows']}")
@@ -120,16 +143,23 @@ def main() -> None:
         print_metrics(m1)
         print_metrics(m2)
         print("=== Comparison Summary ===")
-        print(f"{'Metric':<25} {m1['file']:<25} {m2['file']:<25}")
-        print("-" * 75)
-        print(f"{'Schlecht (Target)':<25} {m1['n_schlecht']:<25} {m2['n_schlecht']:<25}")
-        print(f"{'Normal (False Alarm)':<25} {m1['n_normal']:<25} {m2['n_normal']:<25}")
+        print(f"{'Metric':<30} {m1['file']:<25} {m2['file']:<25}")
+        print("-" * 80)
+        print(f"{'Total Visits':<30} {m1['total_rows']:<25} {m2['total_rows']:<25}")
+        print(f"{'Unique Gateways Visited':<30} {m1['n_unique_gws']:<25} {m2['n_unique_gws']:<25}")
+        print(f"{'Visits: Schlecht (Target)':<30} {m1['n_schlecht']:<25} {m2['n_schlecht']:<25}")
+        print(f"{'Visits: Normal (False Alarm)':<30} {m1['n_normal']:<25} {m2['n_normal']:<25}")
         sn1 = f"{m1['sn_ratio']:.2f}" if m1['sn_ratio'] != float('inf') else "inf"
         sn2 = f"{m2['sn_ratio']:.2f}" if m2['sn_ratio'] != float('inf') else "inf"
-        print(f"{'S/N Ratio':<25} {sn1:<25} {sn2:<25}")
-        print(f"{'Mean Read Rate':<25} {m1['mean_read_rate']:<25.4f} {m2['mean_read_rate']:<25.4f}")
-        print(f"{'Reads < 80%':<25} {m1['reads_below_80pct']:<25} {m2['reads_below_80pct']:<25}")
-        print(f"{'Total Meters Exposed':<25} {m1['total_meters_exposed']:<25,} {m2['total_meters_exposed']:<25,}")
+        print(f"{'Visits: S/N Ratio':<30} {sn1:<25} {sn2:<25}")
+        print(f"{'Unique: Schlecht':<30} {m1['u_schlecht']:<25} {m2['u_schlecht']:<25}")
+        print(f"{'Unique: Normal':<30} {m1['u_normal']:<25} {m2['u_normal']:<25}")
+        u_sn1 = f"{m1['u_sn_ratio']:.2f}" if m1['u_sn_ratio'] != float('inf') else "inf"
+        u_sn2 = f"{m2['u_sn_ratio']:.2f}" if m2['u_sn_ratio'] != float('inf') else "inf"
+        print(f"{'Unique: S/N Ratio':<30} {u_sn1:<25} {u_sn2:<25}")
+        print(f"{'Mean Read Rate':<30} {m1['mean_read_rate']:<25.4f} {m2['mean_read_rate']:<25.4f}")
+        print(f"{'Reads < 80%':<30} {m1['reads_below_80pct']:<25} {m2['reads_below_80pct']:<25}")
+        print(f"{'Total Meters Exposed':<30} {m1['total_meters_exposed']:<25,} {m2['total_meters_exposed']:<25,}")
         return
 
     paths = args.predictions or [Path(__file__).parent / "predictions.csv"]

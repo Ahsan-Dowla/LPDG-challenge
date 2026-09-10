@@ -320,3 +320,62 @@ def test_pipeline_unknown_strategy_raises() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         with pytest.raises(ValueError, match="unknown strategy"):
             run(pathlib.Path(tmp), pathlib.Path(tmp) / "out.csv", strategy="magic")
+
+
+# ---------------------------------------------------------------------------
+# Persistence & Coverage Regression Tests
+# ---------------------------------------------------------------------------
+
+
+def test_low_coverage_cannot_artificially_inflate_persistence() -> None:
+    """A gateway with 20/20 failing hours must NOT get a higher persistence
+    term than a gateway with 160/160 failing hours.
+    Both observed 100% of their reporting hours failing, but the one with
+    160 failing hours has far more sustained evidence across the expected 168h."""
+    from src.part1.config import EXPECTED_WEEKLY_HOURS
+    
+    # Gateway A: 20 hours observed, all 20 failing
+    gw_a_ts = [f"2026-01-26T{h:02d}:00:00Z" for h in range(20)]
+    frame_a = telemetry_rows("GW_A", gw_a_ts, value=100.0, no_conn=100.0)
+
+    # Gateway B: 160 hours observed, all 160 failing
+    # generate 160 hourly timestamps
+    dt_base = dt.datetime(2026, 1, 26, 0, 0, 0, tzinfo=dt.timezone.utc)
+    gw_b_ts = [(dt_base + dt.timedelta(hours=h)).isoformat() for h in range(160)]
+    frame_b = telemetry_rows("GW_B", gw_b_ts, value=100.0, no_conn=100.0)
+
+    frame = pd.concat([frame_a, frame_b], ignore_index=True)
+    master = make_master(["GW_A", "GW_B"], meters=100)
+
+    ranked = rank_week_optimized(frame, master, dt.date(2026, 2, 2))
+    row_a = ranked[ranked["gateway_id"] == "GW_A"].iloc[0]
+    row_b = ranked[ranked["gateway_id"] == "GW_B"].iloc[0]
+
+    # GW_B must score higher than GW_A because of sustained evidence
+    assert row_b["score"] > row_a["score"]
+    # GW_A persistence must be bounded by 20 / 168 < 0.15
+    assert row_a["persistence_pct"] <= round((20.0 / EXPECTED_WEEKLY_HOURS) * 100)
+    # Silent hours must be recorded accurately
+    assert row_a["silent_hours"] == EXPECTED_WEEKLY_HOURS - 20
+    assert row_b["silent_hours"] == EXPECTED_WEEKLY_HOURS - 160
+
+
+def test_optimized_reason_distinguishes_impaired_expected_silent() -> None:
+    """Reason string must explicitly report impaired, observed, expected, and silent hours."""
+    other_gws = [f"OTHER_{i:02d}" for i in range(14)]
+    master = make_master(["GW_TEST"] + other_gws)
+
+    # Need 8 weeks of data for build_predictions_optimized
+    all_telemetry = _build_optimized_telemetry(["GW_TEST"] + other_gws)
+    # inject the failure in the first week
+    all_telemetry.loc[all_telemetry["gateway_id"] == "GW_TEST", "offline_duration_sec"] = 3600.0
+    all_telemetry.loc[all_telemetry["gateway_id"] == "GW_TEST", "no_conn_importance"] = 1000.0
+
+    preds = build_predictions_optimized(all_telemetry, master)
+    sample_reason = preds.iloc[0]["reason"]
+
+    assert "observed impaired" in sample_reason
+    assert "silent of 168h expected" in sample_reason
+    assert "meters exposed" in sample_reason
+    assert len(sample_reason) <= 300
+

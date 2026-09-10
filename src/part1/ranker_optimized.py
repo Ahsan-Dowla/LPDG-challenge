@@ -56,6 +56,7 @@ import pandas as pd
 
 from .config import (
     BASELINE_DAYS,
+    EXPECTED_WEEKLY_HOURS,
     OPT_W_CORROBORATION,
     OPT_W_DISC,
     OPT_W_EXPOSURE,
@@ -132,8 +133,9 @@ def rank_week_optimized(
     technical = OPT_W_OFFLINE * tech_offline + OPT_W_DISC * tech_disc
 
     # --- Persistence ---
+    # Scaled by expected weekly hours (168h) to prevent low coverage from inflating persistence
     persistence = (
-        recent_agg["problem_hours"] / np.maximum(recent_agg["coverage_hours"], 1)
+        recent_agg["problem_hours"] / np.maximum(recent_agg["coverage_hours"], float(EXPECTED_WEEKLY_HOURS))
     ).clip(0, 1)
 
     # --- Corroboration via no_conn_importance ---
@@ -158,7 +160,10 @@ def rank_week_optimized(
         tech_offline >= tech_disc, "disconnection_cnt"
     )
 
-    result = recent_agg[["coverage_hours"]].copy()
+    silent_hours = np.maximum(0, EXPECTED_WEEKLY_HOURS - recent_agg["coverage_hours"])
+
+    result = recent_agg[["coverage_hours", "problem_hours"]].copy()
+    result["silent_hours"] = silent_hours
     result["score"] = score
     result["worst_signal"] = worst_signal
     result["n_meters"] = meters.astype(int)
@@ -188,14 +193,15 @@ def build_predictions_optimized(
             ranked.head(VISITS_PER_WEEK).itertuples(index=False), 1
         ):
             signal = row.worst_signal
-            persist = int(row.persistence_pct)
             cov = int(row.coverage_hours)
+            prob_hrs = int(row.problem_hours)
+            silent_hrs = int(row.silent_hours)
             n_m = int(row.n_meters)
             score_val = round(float(row.score), 4)
             reason = (
-                f"Optimized V1: persistent {signal} elevated across {persist}% "
-                f"of {cov} observed hours; {n_m} meters exposed. "
-                f"Score={score_val} (technical+persistence+exposure)."
+                f"Optimized V1: {prob_hrs}/{cov}h observed impaired ({signal}), "
+                f"{silent_hrs}h silent of {EXPECTED_WEEKLY_HOURS}h expected; "
+                f"{n_m} meters exposed; score={score_val}."
             )
             # Reason must not exceed 300 characters
             if len(reason) > 300:
