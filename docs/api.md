@@ -6,7 +6,48 @@ The API exposes endpoints to query weekly predictions, explain individual gatewa
 
 ---
 
-## 1. Getting Started
+## 1. Application Architecture
+
+The application implements a decoupled, layered architecture to isolate web routing from ranking logic:
+
+```
+Client (HTTP / Tests / CLI)
+          │
+          ▼
+   FastAPI Layer (`src/api/`)
+   - `routes.py`: Endpoint handlers (/health, /predictions, /gateways, /predict)
+   - `schemas.py`: Pydantic models enforcing payload validation and contracts
+   - `app.py`: Factory, dependency injection, and centralized exception handling
+          │
+          ▼
+   Service Layer (`src/services/`)
+   - `ranking_service.py`: Orchestrates dataset loading, caching, and input validation
+   - `exceptions.py`: Domain-specific exceptions (GatewayNotFoundError, InvalidWeekError)
+          │
+          ▼
+   Ranker Abstraction (`src/services/interfaces.py`)
+   - `BaseRanker` Protocol defining `rank_week`, `predict_week`, `predict_all`, `explain_gateway`
+          │
+          ▼
+   Ranker Adapter (`src/services/v1_ranker.py`)
+   - `V1OptimizedRanker`: Pluggable adapter wrapping the Part 1 core algorithm
+          │
+          ▼
+   Frozen Part 1 Pipeline (`src/part1/`)
+   - `ranker_optimized.py`: Severity, persistence, corroboration, and exposure logic
+   - `eligibility.py`: Cutoff and decommissioning filtering
+   - `data_loader.py`: Telemetry and master dataset ingestion
+```
+
+### Architectural Principles
+1. **API Independence**: The API routes and schemas have zero awareness of the underlying scoring formula or metric weights.
+2. **Swappable Implementation**: Future Part 2 probabilistic models or ML rankers can be introduced by implementing `BaseRanker` without altering any API route code.
+3. **Core Stability**: The frozen Part 1 ranking pipeline remains completely isolated from API concerns.
+4. **Information Hiding**: Internal server exceptions and filesystem paths are caught and transformed into clean, deterministic JSON errors.
+
+---
+
+## 2. Getting Started
 
 ### Prerequisites
 - Python 3.11+
@@ -34,43 +75,33 @@ Once running, the interactive OpenAPI documentation is available at:
 
 ---
 
-## 2. API Endpoints
+## 3. API Endpoints
 
-### 2.1 Health Check
+### 3.1 Health Check
 **`GET /health`**
 
-Determines if the service is alive and accessible. This endpoint responds immediately without running expensive data loading or ranking pipelines.
-
-**Response `200 OK`**:
+- **Purpose**: Determines if the service is operational and accessible.
+- **Behavior**: Responds immediately without running expensive data loading or ranking pipelines.
+- **Request**: No parameters.
+- **Response `200 OK`**:
 ```json
 {
   "status": "ok"
 }
 ```
+- **Error Cases**: Returns `500 Internal Server Error` if an unhandled service failure occurs.
 
 ---
 
-### 2.2 Get Weekly Predictions
+### 3.2 Get Weekly Predictions
 **`GET /predictions/{week}`**
 
-Returns the 15 recommended gateway visits for a specific scored Monday cutoff (`YYYY-MM-DD`).
-
-**Scored Weeks Supported:**
-- `2026-02-02`
-- `2026-02-09`
-- `2026-02-16`
-- `2026-02-23`
-- `2026-03-02`
-- `2026-03-09`
-- `2026-03-16`
-- `2026-03-23`
-
-**Example Request:**
-```bash
-curl -X GET "http://127.0.0.1:8000/predictions/2026-03-23"
-```
-
-**Response `200 OK`**:
+- **Purpose**: Returns the 15 recommended gateway visits for a specific scored Monday cutoff.
+- **Request Parameters**:
+  - `week` *(path parameter, string)*: Scored Monday cutoff in `YYYY-MM-DD` format.
+- **Scored Weeks Supported**:
+  `2026-02-02`, `2026-02-09`, `2026-02-16`, `2026-02-23`, `2026-03-02`, `2026-03-09`, `2026-03-16`, `2026-03-23`.
+- **Response `200 OK`**:
 ```json
 {
   "week_start": "2026-03-23",
@@ -93,23 +124,21 @@ curl -X GET "http://127.0.0.1:8000/predictions/2026-03-23"
   ]
 }
 ```
+- **Error Cases**:
+  - `400 Bad Request`: If `{week}` is not formatted as `YYYY-MM-DD` (`"Invalid date format 'not-a-date'. Expected YYYY-MM-DD."`).
+  - `400 Bad Request`: If `{week}` is a valid date but outside the scored evaluation window (`"Week '2026-01-01' is not a scored prediction week."`).
+  - `500 Internal Server Error`: If telemetry data is missing or calculation fails.
 
 ---
 
-### 2.3 Explain Gateway Ranking
+### 3.3 Explain Gateway Ranking
 **`GET /gateways/{gateway_id}`**
 
-Explains why a gateway is ranked at its position for a given week using real operational telemetry evidence. Accepts both compact 12-character hex IDs (`02423E0E6E9F`) and colon-separated MAC-style IDs (`02:42:3E:0E:6E:9F`).
-
-**Query Parameters:**
-- `week` *(optional, string)*: Scored Monday cutoff (`YYYY-MM-DD`). Defaults to the latest scored week (`2026-03-23`).
-
-**Example Request:**
-```bash
-curl -X GET "http://127.0.0.1:8000/gateways/02423E0E6E9F?week=2026-02-02"
-```
-
-**Response `200 OK`**:
+- **Purpose**: Explains why a gateway is ranked at its position using real calculated operational fields.
+- **Request Parameters**:
+  - `gateway_id` *(path parameter, string)*: 12-character hex ID (`02423E0E6E9F`) or colon-separated MAC (`02:42:3E:0E:6E:9F`).
+  - `week` *(optional query parameter, string)*: Scored Monday cutoff (`YYYY-MM-DD`). Defaults to the latest scored week (`2026-03-23`).
+- **Response `200 OK`**:
 ```json
 {
   "gateway_id": "02423E0E6E9F",
@@ -129,40 +158,27 @@ curl -X GET "http://127.0.0.1:8000/gateways/02423E0E6E9F?week=2026-02-02"
   }
 }
 ```
-
-**If Gateway is Not Found (`404 Not Found`):**
-```json
-{
-  "detail": "Gateway 'UNKNOWN' not found in evaluated active set for week 2026-02-02"
-}
-```
+- **Error Cases**:
+  - `404 Not Found`: Gateway ID does not exist in the active/evaluated pool for that week (`{"detail": "Gateway 'XYZ' not found in evaluated active set for week 2026-02-02"}`).
+  - `400 Bad Request`: If `week` query parameter is invalid or out of window.
+  - `400 Bad Request`: If `gateway_id` is empty.
 
 ---
 
-### 2.4 Trigger Prediction Rerun
+### 3.4 Trigger Prediction Rerun
 **`POST /predict`**
 
-Reruns the prediction pipeline. Can rerun either a single specified week or all 8 scored weeks.
-
-**Request Body (Optional):**
+- **Purpose**: Explicitly reruns the prediction pipeline.
+- **Request Body (Optional)**:
 ```json
 {
   "week_start": "2026-03-23",
   "output_path": "predictions.csv"
 }
 ```
-
-- If `week_start` is omitted, all 8 scored weeks are evaluated.
-- If `output_path` is specified, results are safely written to that CSV file.
-
-**Example Request:**
-```bash
-curl -X POST "http://127.0.0.1:8000/predict" \
-     -H "Content-Type: application/json" \
-     -d '{"week_start": "2026-03-23"}'
-```
-
-**Response `200 OK`**:
+  - `week_start` *(optional)*: Specific Monday cutoff to rerun. If omitted, reruns all 8 scored weeks.
+  - `output_path` *(optional)*: File destination to write predictions CSV.
+- **Response `200 OK`**:
 ```json
 {
   "status": "success",
@@ -183,46 +199,41 @@ curl -X POST "http://127.0.0.1:8000/predict" \
   ]
 }
 ```
+- **Error Cases**:
+  - `400 Bad Request`: If `week_start` is not a valid scored prediction week.
+  - `422 Unprocessable Entity`: If unexpected payload fields are submitted.
+  - `500 Internal Server Error`: If pipeline execution fails during recalculation.
 
 ---
 
-## 3. Error Handling
+## 4. Error Handling Summary
 
-The API uses standard HTTP status codes with human-readable, deterministic JSON responses. Internal server paths and tracebacks are never exposed to clients.
+All endpoints return structured JSON errors with HTTP status codes matching standard REST semantics:
 
-| HTTP Status | Condition | Example Response |
+| HTTP Status | Trigger Condition | Example Response |
 |---|---|---|
-| **400 Bad Request** | Unparseable date or unscored week requested | `{"detail": "Week '2026-01-01' is not a scored prediction week. Scored weeks are: [...]"}` |
-| **404 Not Found** | Gateway not in active/evaluated pool | `{"detail": "Gateway 'XYZ' not found in evaluated active set for week 2026-02-02"}` |
-| **422 Unprocessable Entity** | Malformed JSON or invalid schema field types | `{"detail": "Request validation failed: Field required"}` |
-| **500 Internal Server Error** | Internal pipeline or data loading error | `{"detail": "Prediction pipeline failure: ..."}` |
+| **400 Bad Request** | Unparseable date or unscored week requested | `{"detail": "Week '2026-01-01' is not a scored prediction week."}` |
+| **404 Not Found** | Gateway not found in evaluated active set | `{"detail": "Gateway 'UNKNOWN' not found in evaluated active set for week 2026-02-02"}` |
+| **422 Unprocessable Entity** | Malformed JSON schema or extra fields | `{"detail": "Request validation failed: Extra inputs are not permitted"}` |
+| **500 Internal Server Error** | Missing data files or internal calculation failure | `{"detail": "Ranking pipeline failed: ..."}` |
 
 ---
 
-## 4. Running Tests
+## 5. Running Automated Tests
 
-Run the full pytest suite (including API tests, Part 1 baseline tests, and regression tests):
-
-```bash
-pytest -v
+Run the full pytest suite (34 passing tests):
+```powershell
+venv\Scripts\python.exe -m pytest -q
 ```
 
-Run only API tests:
-```bash
-pytest tests/test_api.py -v
-```
+Run specific test modules:
+```powershell
+# API and E2E tests (16 tests)
+venv\Scripts\python.exe -m pytest tests/test_api.py -v
 
-Run regression tests:
-```bash
-pytest tests/test_regression_coverage.py -v
-```
+# Persistence/coverage regression test (1 test)
+venv\Scripts\python.exe -m pytest tests/test_regression_coverage.py -v
 
-Run the existing Part 1 CLI pipeline:
-```bash
-python main.py --data data --out predictions.csv
-```
-
-Validate predictions with the official grader validator:
-```bash
-python validate_submission.py predictions.csv
+# Core Part 1 unit & pipeline tests (17 tests)
+venv\Scripts\python.exe -m pytest tests/test_part1.py -v
 ```
