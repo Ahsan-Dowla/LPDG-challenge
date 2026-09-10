@@ -60,3 +60,10 @@ To improve upon the baseline 3-sigma ranker without introducing black-box ML or 
 ## 11. Preserving Baseline Compatibility
 
 The codebase preserves the exact baseline algorithm under `--strategy baseline`. The CLI defaults to `--strategy optimized`. Both modes pass all schema and validation rules verified by `validate_submission.py`.
+
+## 12. Phase 1 Software Architecture & API Decoupling
+
+The Web API layer (`src/api`) is strictly decoupled from the ranking formula. The API interacts solely with the service layer (`RankingService`), which depends on an abstract `BaseRanker` protocol. The current Optimization V1 implementation is wrapped in `V1OptimizedRanker` and plugged into this abstraction without modifying the frozen Part 1 algorithm. This design guarantees:
+1. Swappability: Future Part 2 probabilistic models can be introduced with zero changes to API routes or error handling.
+2. Stability: The existing CLI (`main.py`) and validator (`validate_submission.py`) continue to run directly against the Part 1 pipeline with 100% backward compatibility.
+3. Information Hiding: Internal server details, stack traces, and filesystem paths are never leaked to API callers.
