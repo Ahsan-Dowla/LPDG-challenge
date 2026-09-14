@@ -1,0 +1,15 @@
+﻿__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+venv/
+.env
+.git/
+.gitignore
+outputs/
+*.csv
+explore_output.txt
+gm_output.txt
+_explore_*.py
+explore.py
+backtest_full.py

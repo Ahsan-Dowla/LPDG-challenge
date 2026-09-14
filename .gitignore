@@ -32,8 +32,14 @@ env/
 # =========================
 # Generated outputs
 # =========================
-predictions.csv
-predictions_*.csv
+# Ignore generated CSVs in outputs/ but track the frozen official submissions
+outputs/*.csv
+# These are frozen, tracked files — do NOT ignore them:
+# predictions.csv          (V1 official Part 1 submission)
+# predictions_v2.csv       (V2 Part 2 challenger)
+# predictions_baseline.csv (Baseline reference)
+
+
 
 # =========================
 # Logs / runtime files
@@ -56,6 +62,8 @@ Thumbs.db
 *.temp
 *.swp
 .ipynb_checkpoints/
-_explore*.py
-explore_output.txt
-gm_output.txt
+
+# =========================
+# Archive (kept for history, not ignored)
+# =========================
+# archive/ is tracked intentionally
