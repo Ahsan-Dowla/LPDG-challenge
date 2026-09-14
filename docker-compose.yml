@@ -1,4 +1,4 @@
-﻿services:
+services:
   api:
     build:
       context: .
@@ -11,7 +11,7 @@
     environment:
       DATA_DIR: /app/data
       OUTPUT_DIR: /app/outputs
-      RANKING_STRATEGY: optimized
+      RANKING_STRATEGY: v1
       LOG_LEVEL: INFO
     restart: unless-stopped
     healthcheck:

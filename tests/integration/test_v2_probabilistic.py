@@ -37,7 +37,7 @@ from src.services.ranking_service import RankingService
 from src.services.v1_ranker import V1OptimizedRanker
 from src.services.v2_ranker import V2ProbabilisticRanker
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 
 # ---------------------------------------------------------------------------

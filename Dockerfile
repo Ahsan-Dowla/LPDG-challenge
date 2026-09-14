@@ -1,4 +1,4 @@
-﻿# ── Build stage ──────────────────────────────────────────────────────────────
+# -- Build stage --------------------------------------------------------------
 FROM python:3.13-slim AS builder
 
 WORKDIR /build
@@ -6,7 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# ── Runtime stage ─────────────────────────────────────────────────────────────
+# -- Runtime stage -------------------------------------------------------------
 FROM python:3.13-slim AS runtime
 
 LABEL org.opencontainers.image.title="LPDG Gateway Ranking" \
@@ -34,7 +34,7 @@ ENV DATA_DIR=/app/data \
     OUTPUT_DIR=/app/outputs \
     API_HOST=0.0.0.0 \
     API_PORT=8000 \
-    RANKING_STRATEGY=optimized \
+    RANKING_STRATEGY=v1 \
     LOG_LEVEL=INFO \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

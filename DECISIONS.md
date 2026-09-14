@@ -59,7 +59,7 @@ To improve upon the baseline 3-sigma ranker without introducing black-box ML or 
 
 ## 11. Preserving Baseline Compatibility
 
-The codebase preserves the exact baseline algorithm under `--strategy baseline`. The CLI defaults to `--strategy optimized`. Both modes pass all schema and validation rules verified by `validate_submission.py`.
+The codebase preserves the exact baseline algorithm under `--strategy baseline`. The CLI defaults to V1 (--strategy v1), with optimized retained as a backward-compatible alias. Both modes pass all schema and validation rules verified by `validate_submission.py`.
 
 ## 12. Phase 1 Software Architecture & API Decoupling
 
@@ -95,3 +95,49 @@ Across all 22 historical weeks (330 visits evaluated against following-week grou
 - **Net Economic Payoff**: increased by **+€23,520** (+15.8% payoff: €172,520 vs €149,000).
 - **Brier Score**: well-calibrated at **0.0838**.
 - **Scored Weeks**: maintains parity on confirmed bad gateways (89 Schlecht, 6 Normal, S/N = 14.83) while increasing visits with read rate $< 80\%$ from 83 to 88.
+
+
+## 14. V1 is the Official Part 1 Submission
+
+V1 (Optimized Evidence Ranker) is the officially submitted Part 1 answer.
+V2 is retained as an explicit, available challenger strategy.
+
+Reasons for not promoting V2 as the default:
+- The official 8-week evaluation showed V1 and V2 had identical engineer-confirmed
+  visit counts (89 Schlecht each, 6 vs 6 Normal). There was no measurable
+  operational difference in the evaluation window.
+- V2's backtest improvement (+EUR 23,520 simulated economic value) is a
+  *retrospective estimate on historical data* using assumed cost parameters
+  (EUR 380 wasted visit, EUR 600 unattended failure). These parameters were
+  not empirically derived.
+- The 8-week evaluation window is statistically too short to confidently
+  distinguish strategy superiority.
+- V1 is simpler, more interpretable, and its assumptions are more transparent.
+
+## 15. V2 is Retained as a Challenger
+
+V2 remains available via `--strategy v2` and `predictions_v2.csv` for:
+- Demonstrating probabilistic/expected-value decision framing.
+- Historical backtest analysis (22-week walk-forward evaluation).
+- Future evaluation if a longer operational window becomes available.
+
+V2 must not be described as superior to V1 based solely on backtest evidence.
+Both strategies are evaluated against biased labels (field visits can only
+confirm gateways that were already ranked highly), which limits the
+statistical validity of comparison.
+
+## 16. Economic Value Estimates are Simulated
+
+All references to "EUR savings" or "economic value" in V2 analysis are
+*simulated backtest estimates* based on assumed cost parameters.
+They are not realized operational savings. Documentation must reflect this.
+
+## 17. Backtest Evidence Interpretation
+
+The 22-week historical backtest evidence (Precision@15, Brier Score,
+wasted visit counts) should be understood as:
+- Computed on the same data used to inform the V2 formula design.
+  No strict holdout set was used.
+- Dependent on the field-visit ground truth, which is itself biased
+  (gateways can only be confirmed by visiting them).
+- Useful as directional signal, not as a guarantee of production performance.
