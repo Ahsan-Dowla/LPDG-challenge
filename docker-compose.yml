@@ -1,0 +1,22 @@
+﻿services:
+  api:
+    build:
+      context: .
+      target: runtime
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data:ro
+      - ./outputs:/app/outputs
+    environment:
+      DATA_DIR: /app/data
+      OUTPUT_DIR: /app/outputs
+      RANKING_STRATEGY: optimized
+      LOG_LEVEL: INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
