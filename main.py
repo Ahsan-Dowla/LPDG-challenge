@@ -14,7 +14,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from src.part1.config import DEFAULT_STRATEGY, STRATEGY_BASELINE, STRATEGY_OPTIMIZED
+from src.part1.config import (
+    DEFAULT_STRATEGY,
+    STRATEGY_BASELINE,
+    STRATEGY_OPTIMIZED,
+    STRATEGY_V2,
+)
 from src.part1.pipeline import run
 
 
@@ -25,13 +30,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=here / "predictions.csv")
     parser.add_argument(
         "--strategy",
-        choices=[STRATEGY_BASELINE, STRATEGY_OPTIMIZED],
+        choices=[STRATEGY_BASELINE, STRATEGY_OPTIMIZED, STRATEGY_V2],
         default=DEFAULT_STRATEGY,
         help=(
             f"Ranking strategy to use. "
             f"'{STRATEGY_BASELINE}': original 3-sigma anomaly-count ranker. "
             f"'{STRATEGY_OPTIMIZED}': Optimization V1 (technical severity + "
-            f"persistence + corroboration + exposure). Default: {DEFAULT_STRATEGY}."
+            f"persistence + corroboration + exposure). "
+            f"'{STRATEGY_V2}': Probabilistic V2 (robust stats + Bayesian "
+            f"persistence + expected-value decision score). Default: {DEFAULT_STRATEGY}."
         ),
     )
     args = parser.parse_args(argv)

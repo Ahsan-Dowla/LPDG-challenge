@@ -8,6 +8,7 @@ from .exceptions import (
 from .interfaces import BaseRanker
 from .ranking_service import RankingService
 from .v1_ranker import V1OptimizedRanker
+from .v2_ranker import V2ProbabilisticRanker
 
 __all__ = [
     "BaseRanker",
@@ -17,4 +18,5 @@ __all__ = [
     "PipelineExecutionError",
     "RankingService",
     "V1OptimizedRanker",
+    "V2ProbabilisticRanker",
 ]

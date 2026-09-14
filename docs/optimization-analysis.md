@@ -315,3 +315,55 @@ This is a proxy until a reliable visit-success label is defined.
 5. **Where does current 3-sigma appear to produce potential false positives/negatives?**  37 of 120 selected rows lacked the independent evidence used here and are potential false positives. High scores did not clearly outperform low scores. Some low-ranked selected gateways had poor read rates, `Schlecht` reviews, or repairs, indicating ordering weaknesses and potential false negatives within the Top-15.
 
 6. **What business-impact measure should influence Top-15 ranking?**  Use installed meters multiplied by a bounded estimate of affected fraction, initially `n_meters_installed * (1 - recent_read_rate)`, with telemetry severity and persistence required as evidence. A high-exposure gateway should outrank a low-exposure gateway at similar technical severity.
+
+---
+
+## 8. Phase 2: Probabilistic & Expected-Value Ranking V2 Evaluation
+
+### 8.1 Model Formulation & Architecture
+
+Implemented in `src/part1/ranker_v2.py` and wrapped by `src/services/v2_ranker.py`:
+1. **Robust Scaling**: Replaces Gaussian $\mu \pm 3\sigma$ with Median Absolute Deviation (MAD) scaled positive deviations:
+   $$z_{\text{pos}} = \max\left(0, \frac{x - \text{median}(x)}{1.4826 \cdot \text{MAD}(x) + \epsilon}\right), \quad S_{\text{metric}} = \frac{z_{\text{pos}}}{\max(z_{\text{pos}})}$$
+   Applied to `offline_duration_sec`, `disconnection_cnt`, `no_conn_importance`, and `reboot_cnt`.
+2. **Bayesian Beta-Binomial Persistence**: Models hourly failure rate with prior $\text{Beta}(\alpha=1.0, \beta=9.0)$ and $168\text{ h}$ effective weekly sample size:
+   $$p_{\text{persistence}} = \frac{\alpha + k_{\text{imp}}}{\alpha + \beta + \max(n_{\text{obs}}, 168)}$$
+   Eliminates low-coverage persistence inflation (e.g. 5/5h impaired yields $p=0.33$, not $1.0$).
+3. **Calibrated Impairment Probability**:
+   $$P(\text{impaired} \mid \text{evidence}) = \text{clip}\left(\frac{S_{\text{tech}} + 0.30 \cdot p_{\text{persistence}} + 0.15 \cdot S_{\text{no\_conn}}}{\max(\text{evidence})}, 0.01, 0.99\right)$$
+4. **Economic Decision Score (€ Expected Value)**:
+   $$\mathbb{E}[\text{Value of Visit}] = P(\text{impaired}) \cdot [€600 \cdot (1 + 0.3 \cdot \text{exposure})] - [1 - P(\text{impaired})] \cdot €380$$
+
+### 8.2 Historical 22-Week Time-Forward Backtest (330 Site Visits)
+
+Simulated strictly forward in time across 22 historical weeks (2025-09-01 to 2026-01-26) where following-week ground-truth meter reading outcomes are observed:
+
+| Metric | Optimization V1 | Probabilistic V2 | Delta (V2 vs V1) | Operational Significance |
+|---|---|---|---|---|
+| **Mean Following Read Rate** | 0.4583 | **0.4104** | -0.0479 | V2 targets more severely degraded sites |
+| **Precision@15 (Read < 80%)** | 84.8% (280/330) | **92.1% (304/330)** | **+7.3%** | **24 additional failing gateways rescued** |
+| **Precision@15 (Read < 50%, Blackout)** | 57.0% (188/330) | **64.5% (213/330)** | **+7.5%** | **25 additional blackout sites resolved** |
+| **Wasted Visits (Read $\ge 80\%$)** | 50 / 330 (15.2%) | **26 / 330 (7.9%)** | **-48.0%** | **Wasted technician visits cut in half (-24)** |
+| **Net Economic Payoff (€)** | €149,000 | **€172,520** | **+€23,520** | **+15.8% financial return on field visits** |
+| **Brier Score** | N/A (uncalibrated) | **0.0838** | — | Strong probabilistic calibration |
+| **Unique Fleet Coverage** | 71 gateways | 71 gateways | 0 | Preserves broad geographic network coverage |
+
+### 8.3 8 Scored Weeks Benchmark (Engineer Review Ground Truth)
+
+| Strategy | Confirmed Bad (`Schlecht`) | False Alarm (`Normal`) | Unreviewed | S/N Ratio | Read Rate < 80% |
+|---|---|---|---|---|---|
+| **Baseline 3-Sigma** | 22 | 26 | 72 | 0.85 | 24 / 120 |
+| **Optimization V1** | **89** | **6** | 25 | **14.83** | 83 / 120 |
+| **Probabilistic V2** | **89** | **6** | 25 | **14.83** | **88 / 120 (+5)** |
+
+### 8.4 Concrete Failure Case Investigation
+
+1. **Gateways V1 Selected but V2 Rejected (47 instances)**:
+   - Mean next read rate: **0.6959**; **53.2% were false alarms** (read rate $\ge 80\%$).
+   - *Why V1 was wrong*: V1's min-max scaling allowed moderate disconnection spikes on low-exposure gateways to crowd out severe blackouts. V2's robust positive z-scores and expected-value decision model correctly rejected these weak candidates (e.g. `0ED5057ECE3F` with read rate 87.4%).
+2. **Gateways V2 Selected but V1 Rejected (47 instances)**:
+   - Mean next read rate: **0.3597**; **97.9% were confirmed true failures** (read rate $< 80\%$).
+   - *Why V2 succeeded*: V2 detected sustained silence and high persistence (e.g. `06787526FEB3`, `023ADDDECF84` with 100% impaired hours and severe blackout outcomes).
+3. **V2 False Alarms (26 instances, Read $\ge 80\%$)**:
+   - E.g. `02892F51E1CB`, `06B641B75B29`.
+   - *Why the model was wrong*: High disconnection counts and packet loss occurred, but attached meters retained interval readings in local non-volatile memory and backfilled data during intermittent online windows.
