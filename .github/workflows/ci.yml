@@ -1,0 +1,50 @@
+﻿name: CI
+
+on:
+  push:
+    branches: [main, test]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test Suite (Python 3.13)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest -q --tb=short
+
+      - name: Validate official V1 submission
+        run: |
+          python main.py
+          python validate_submission.py predictions.csv
+
+      - name: Validate V2 submission
+        run: |
+          python main.py --strategy v2 --out predictions_v2.csv
+          python validate_submission.py predictions_v2.csv
+
+      - name: Verify frozen output hash (V1)
+        run: |
+          python -c "
+          import hashlib, sys
+          h = hashlib.sha256(open('predictions.csv','rb').read()).hexdigest().upper()
+          ref = '0F4D38C524EE8E224D321E6381A5CEF83BFC81EF4D0E9C2B466C8B402125F6D0'
+          if h != ref:
+              print(f'HASH MISMATCH: {h}')
+              sys.exit(1)
+          print(f'Hash verified: {h}')
+          "
