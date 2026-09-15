@@ -1,191 +1,616 @@
-# LPDG Innovation Hub Selection Challenge 2026 -- Gateway Prioritization
+# ⚡ LPDG Innovation Hub — Gateway Prioritization
 
-A deterministic, evidence-based gateway visit prioritization system for the
-LPDG Innovation Hub Selection Challenge 2026, delivering exactly 15 ranked
-field visit recommendations per week across 8 scored evaluation weeks.
-
+> **NEXORA 2026 · LPDG Innovation Hub Selection Challenge**
+>
+> A deterministic, evidence-based gateway prioritization system that selects **exactly 15 gateways per week** for field visits across **8 evaluation weeks**.
 ---
+### 🎯 At a Glance
 
-## Quick Start
+> **Production-style gateway ranking system** for prioritizing 15 field visits per week from smart-grid telemetry.
+
+| **Category** | **Details** |
+|:---|:---|
+| 📅 **Evaluation period** | `02 Feb 2026` → `23 Mar 2026` |
+| 🗓️ **Evaluation horizon** | **8 weeks** · every Monday |
+| 🚨 **Weekly capacity** | **15 gateways / week** |
+| 📦 **Submission size** | **120 ranked decisions** |
+| 🧠 **Official strategy** | **V1 — Optimized Evidence** |
+| 🔬 **Challenger strategy** | **V2 — Probabilistic Expected Value** |
+| ⚡ **API framework** | **FastAPI** |
+| 🐳 **Containerization** | **Docker** |
+| 🔄 **CI/CD** | **GitHub Actions** |
+| 🧪 **Test suite** | **82 local tests** |
+| 🔐 **Challenge data** | **Private · excluded from Git** |
+
+> **Core constraint:** exactly **15 gateways must be selected every week**, producing a deterministic **120-row submission** across the 8-week evaluation period.
+---
+# 🚀 Quick Start
+
+## 1. Install
 
 ```powershell
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
+```
 
-# Generate official Part 1 predictions (V1 -- frozen)
+Place the supplied challenge dataset in:
+
+```text
+data/
+```
+
+> The challenge dataset is intentionally **not included in this repository**.
+
+---
+
+## 2. Generate the official submission
+
+```powershell
 python main.py --strategy v1
+```
 
-# Generate Part 2 probabilistic predictions (V2 -- challenger)
-python main.py --strategy v2 --out predictions_v2.csv
+This generates:
 
-# Validate format
+```text
+predictions.csv
+```
+
+The output contains exactly **120 rows**:
+
+- 15 gateways
+- × 8 evaluation weeks
+
+---
+
+## 3. Validate
+
+```powershell
 python validate_submission.py predictions.csv
+```
 
-# Run all tests
+Expected:
+
+```text
+predictions.csv: OK
+15 ranked gateways for each of 8 weeks
+```
+
+---
+
+## 4. Run the test suite
+
+```powershell
 python -m pytest -q
 ```
 
 ---
 
-## Challenge Summary
+# 🧠 Solution Overview
 
-| Item | Value |
-|------|-------|
-| Evaluation period | 2026-02-02 to 2026-03-23 (8 Mondays) |
-| Visits per week | 15 (exactly) |
-| Total submission rows | 120 |
-| Official strategy | V1 Optimized Evidence (`--strategy v1`) |
-| Challenger strategy | V2 Probabilistic (`--strategy v2`) |
-| Tests passing | 75 |
+The system transforms hourly gateway telemetry into a weekly operational decision:
+
+```text
+┌──────────────────────┐
+│ Gateway Master Data  │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ Hourly Telemetry     │
+│ • Offline duration   │
+│ • Disconnections     │
+│ • Reboots            │
+│ • Connection signal  │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ Feature Engineering  │
+│ • Recent severity    │
+│ • Persistence        │
+│ • Silence / coverage │
+│ • Meter exposure     │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ Ranking Strategy     │
+│                      │
+│ V1 Official          │
+│ V2 Challenger        │
+│ Baseline             │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ Exactly Top 15       │
+│ Gateways / Week      │
+└──────────┬───────────┘
+           │
+           ▼
+      predictions.csv
+```
+
+The implementation separates **data loading**, **feature generation**, **ranking**, **evaluation**, and the **API**, allowing ranking strategies to be changed without rewriting the API layer.
 
 ---
 
-## Strategies
+# 🥇 Official Strategy — V1
 
-### V1 -- Optimized Evidence Ranker (official Part 1 answer)
+**V1 is the frozen Part 1 answer.**
 
-Scores each gateway using:
-- **Persistence**: `problem_hours / max(coverage_hours, 168)` -- guards against
-  inflating gateways with sparse telemetry
-- **Silence penalty**: hours with no telemetry treated as at-risk
-- **Metric bonus**: connection interruptions weighted above raw offline duration
-- **Meter exposure**: log-scaled customer count
+It ranks gateways using observable telemetry evidence rather than supervised labels.
 
-CLI: `--strategy v1` (also accepted: `--strategy optimized` for backward compatibility)
+### Core signals
 
-Output: `predictions.csv` (SHA-256: `0F4D38C5...6D0`)
+- **Persistence** — sustained problematic hours relative to the available observation window
+- **Connection interruptions** — repeated disconnection evidence
+- **Offline duration** — severity of gateway unavailability
+- **Silence / missing telemetry** — treated as additional operational risk
+- **Meter exposure** — customer impact based on installed meters
 
-### V2 -- Probabilistic Expected-Value Ranker (Part 2 challenger)
+### Persistence
 
-Separates **estimated impairment probability** from **economic exposure** and
-combines them into a simulated visit value:
+The persistence calculation is coverage-aware:
 
+```text
+persistence =
+    problem_hours / max(coverage_hours, 168)
 ```
-EV = P(impaired) * exposure - (1 - P(impaired)) * visit_cost
+
+This prevents gateways with sparse observations from appearing artificially persistent.
+
+### Output
+
+```text
+predictions.csv
 ```
 
-P(impaired) is estimated via a Bayesian Beta-Binomial persistence model with
-Beta(1, 9) prior. Score is the expected economic value (EUR) of dispatching a
-technician to that site.
+SHA-256:
 
-Output: `predictions_v2.csv` (SHA-256: `B3CD9031...52`)
+```text
+0F4D38C524EE8E224D321E6381A5CEF83BFC81EF4D0E9C2B466C8B402125F6D0
+```
 
-> **Important**: The ~EUR 172,520 simulated economic value is a backtest
-> modelling estimate based on assumed cost parameters -- not a realized saving.
-> V1 and V2 had identical engineer-confirmed visit totals (89 Schlecht each)
-> across the 8 official evaluation weeks.
+The frozen output is protected by regression tests and CI hash verification.
 
 ---
 
-## Repository Layout
+# 📊 V2 — Probabilistic Challenger
 
+V2 is retained as a **Part 2 statistical/probabilistic challenger**.
+
+It separates:
+
+1. **Estimated gateway impairment**
+2. **Operational/customer exposure**
+3. **Expected value of a field visit**
+
+Conceptually:
+
+```text
+Telemetry
+    │
+    ▼
+Robust statistical signals
+    │
+    ▼
+Estimated P(impaired)
+    │
+    ▼
+Economic exposure
+    │
+    ▼
+Expected visit value
+    │
+    ▼
+Top 15
 ```
-.
-+-- main.py                    # CLI entrypoint (delegates to src.part1.pipeline)
-+-- scripts/
-|   +-- predict.py             # Canonical ranking CLI via src.lpdg
-|   +-- evaluate.py            # Evaluate against field-visit outcomes
-|   +-- backtest.py            # Walk-forward reproducibility check
-+-- src/
-|   +-- lpdg/                  # Canonical production package
-|   |   +-- api/               # FastAPI app, schemas, routes
-|   |   +-- config/            # Constants (weeks, strategies, paths)
-|   |   +-- data/              # Telemetry and gateway master loaders
-|   |   +-- exceptions.py
-|   |   +-- features/          # Feature engineering helpers
-|   |   +-- evaluation/        # Evaluation metrics
-|   |   +-- ranking/           # V1, V2, Baseline, RankingService, interfaces
-|   +-- services/              # Compatibility bridge -- delegates to src.lpdg
-|   +-- part1/                 # Frozen Part 1 pipeline modules
-|   +-- api/                   # Legacy FastAPI app (uses src.services bridge)
-+-- tests/
-|   +-- unit/
-|   |   +-- test_part1.py      # Unit tests for Part 1 pipeline
-|   |   +-- test_regression_coverage.py  # Persistence bug regression
-|   +-- integration/
-|   |   +-- test_api.py        # API endpoint integration tests
-|   |   +-- test_v2_probabilistic.py     # V2 unit + integration tests
-|   +-- regression/
-|       +-- test_frozen_outputs.py   # Cell-by-cell + hash + leakage checks
-+-- docs/
-|   +-- architecture.md
-|   +-- methodology.md
-|   +-- runbook.md
-|   +-- limitations.md
-+-- pytest.ini
-+-- Dockerfile
-+-- docker-compose.yml
-+-- .github/workflows/ci.yml
+
+The decision score follows the form:
+
+```text
+EV =
+    P(impaired) × exposure
+    − (1 − P(impaired)) × visit_cost
 ```
+
+V2 uses a Bayesian Beta-Binomial persistence component with a `Beta(1, 9)` prior.
+
+### Output
+
+```text
+predictions_v2.csv
+```
+
+SHA-256:
+
+```text
+B3CD9031CA3B71BC34A02EC854D3648A0ACBF585E5FA2DE84EE55A9D152C2652
+```
+
+> **Important:** Any economic value reported for V2 is a **backtest modelling estimate**, not realized savings. It depends on assumed cost parameters.
 
 ---
 
-## API
+# 🔬 Why V1 Is the Official Answer
+
+V1 remains the official submission because the challenge prioritizes **transparent operational judgement and robustness** over unnecessary model complexity.
+
+V2 is therefore kept as a challenger rather than replacing the frozen Part 1 decision.
+
+This also keeps the system easy to explain and modify during a live evaluation.
+
+---
+
+# 🌐 API
+
+Start the API with:
 
 ```powershell
 venv\Scripts\python -m uvicorn src.api.app:app --reload
-# http://localhost:8000/docs
 ```
 
-Key endpoints:
-- `GET /health` -- lightweight status check
-- `GET /predictions/{week_start}` -- top-15 ranked gateways for a Monday
-- `GET /gateways/{gateway_id}?week={week_start}` -- score breakdown for a gateway
-- `POST /predict` -- rerun the prediction pipeline
+Open:
 
-See [`docs/runbook.md`](docs/runbook.md) for detailed examples.
+```text
+http://localhost:8000/docs
+```
+
+## Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `GET` | `/predictions/{week_start}` | Top-15 gateways for a week |
+| `GET` | `/gateways/{gateway_id}?week={week_start}` | Gateway score/details |
+| `GET` | `/predictions/{week_start}/explain/{gateway_id}` | Explain a gateway's ranking |
+| `POST` | `/predict` | Run prediction pipeline |
+| `POST` | `/run` | Reload mounted data and rerun ranking |
+
+### Live data reload
+
+`POST /run` is designed for the live-evaluation scenario.
+
+The service:
+
+```text
+New data placed in mounted data/
+              ↓
+        POST /run
+              ↓
+      Clear cached state
+              ↓
+        Reload data
+              ↓
+       Rerun ranking
+              ↓
+       Return fresh results
+```
+
+A container restart is not required.
 
 ---
 
-## Docker
+# 🐳 Docker
+
+Build and start:
 
 ```powershell
-docker compose build
-docker compose up -d
+docker compose up -d --build
+```
+
+Check:
+
+```powershell
+docker compose ps
+```
+
+Health check:
+
+```powershell
 Invoke-WebRequest -UseBasicParsing http://localhost:8000/health
+```
+
+Stop:
+
+```powershell
 docker compose down
 ```
 
-The image mounts `./data` as a read-only volume -- challenge data is not bundled.
+### Container design
+
+The image uses:
+
+- Python 3.13 slim
+- Multi-stage build
+- Non-root runtime user
+- Docker health check
+- Mounted challenge data
+- Read-only data volume
+
+The challenge dataset is **not bundled into the image**.
 
 ---
 
-## Known Limitations
+# 🔄 Reproducible Prediction Pipeline
 
-See [`docs/limitations.md`](docs/limitations.md) for a full discussion.
-Key points:
+The main CLI is intentionally simple:
 
-- Field visit outcomes are historically **biased labels** -- a gateway could only
-  be confirmed by an engineer if it was already ranked highly.
-- V2's economic score is based on **assumed cost parameters**, not empirical data.
-- Neither strategy was trained on supervised labels -- both are evidence-based.
-- The 8-week evaluation window is too short for statistically significant
-  strategy comparison.
+```powershell
+python main.py --strategy v1
+```
+
+Alternative strategies:
+
+```powershell
+python main.py --strategy v2 --out predictions_v2.csv
+```
+
+The canonical script interface is also available:
+
+```powershell
+python scripts/predict.py --strategy v1
+```
+
+Supporting utilities:
+
+```text
+scripts/
+├── predict.py
+├── evaluate.py
+└── backtest.py
+```
 
 ---
 
-## Project Status
+# 🧪 Testing
 
-| Phase | Status |
-|-------|--------|
-| Part 1 -- Gateway Ranking (V1) | Complete, frozen |
-| Phase 1 -- Software Development (API) | Complete |
-| Part 2 -- Probabilistic V2 Challenger | Complete |
-| Architecture Refactor | Complete |
-| Test Reorganization | Complete |
-| Docker / CI | Complete |
-| Documentation | Complete |
+The project uses three test layers:
+
+```text
+tests/
+├── unit/
+├── integration/
+└── regression/
+```
+
+### Unit tests
+
+Validate individual pipeline and feature behaviours.
+
+### Integration tests
+
+Exercise:
+
+- FastAPI endpoints
+- Ranking service
+- Strategy injection
+- `/run`
+- Explain endpoints
+- Error handling
+- Repeated execution
+
+### Regression tests
+
+Protect:
+
+- Frozen prediction outputs
+- Ranking completeness
+- Output schema
+- Leakage constraints
+- Critical bug fixes
+
+Run everything locally:
+
+```powershell
+python -m pytest -q
+```
+
+Current local result:
+
+```text
+82 passed
+```
 
 ---
 
-## Documentation Index
+# 🔐 Public CI vs Private Challenge Data
+
+The supplied challenge dataset is **private** and is intentionally excluded from Git.
+
+Public GitHub Actions therefore uses:
+
+- synthetic test fixtures for dataset-dependent integration coverage
+- frozen prediction files for submission validation
+- frozen-output hash checks
+- dataset-independent regression tests
+
+The CI workflow does **not** download, generate, or publish the challenge dataset.
+
+This keeps the repository publicly accessible while preserving meaningful automated testing.
+
+---
+
+# ⚙️ Continuous Integration
+
+GitHub Actions runs on pushes and pull requests.
+
+The public CI pipeline performs:
+
+```text
+Install dependencies
+        ↓
+Run dataset-independent tests
+        ↓
+Validate predictions.csv
+        ↓
+Validate predictions_v2.csv
+        ↓
+Verify frozen V1 hash
+```
+
+The private challenge dataset is never required by the public CI workflow.
+
+---
+
+# 🏗️ Repository Structure
+
+```text
+.
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+│
+├── src/
+│   ├── lpdg/                  # Canonical production package
+│   │   ├── api/               # FastAPI application
+│   │   ├── config/            # Configuration
+│   │   ├── data/              # Data loaders
+│   │   ├── evaluation/        # Evaluation metrics
+│   │   ├── features/          # Feature engineering
+│   │   ├── ranking/           # Ranking strategies
+│   │   │   ├── interfaces.py
+│   │   │   ├── baseline.py
+│   │   │   ├── v1.py
+│   │   │   ├── v2.py
+│   │   │   └── service.py
+│   │   └── exceptions.py
+│   │
+│   ├── services/              # Compatibility bridges
+│   ├── part1/                 # Part 1 compatibility pipeline
+│   └── api/                   # API compatibility layer
+│
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── regression/
+│
+├── scripts/
+│   ├── predict.py
+│   ├── evaluate.py
+│   └── backtest.py
+│
+├── docs/
+│   ├── architecture.md
+│   ├── methodology.md
+│   ├── runbook.md
+│   └── limitations.md
+│
+├── predictions.csv
+├── predictions_v2.csv
+├── predictions_baseline.csv
+├── main.py
+├── validate_submission.py
+├── Dockerfile
+├── docker-compose.yml
+├── pytest.ini
+├── DECISIONS.md
+└── AI-USAGE.md
+```
+
+---
+
+# 📈 Evaluation & Analysis
+
+The repository includes supporting analysis covering:
+
+- Baseline vs optimized ranking
+- Gateway exposure
+- Telemetry signal relationships
+- Historical field-visit outcomes
+- Temporal leakage checks
+- Walk-forward evaluation
+- V1/V2 comparison
+- Economic sensitivity
+- Known false-positive and false-negative cases
+
+See:
+
+- [`docs/optimization-analysis.md`](docs/optimization-analysis.md)
+- [`docs/optimization-audit.md`](docs/optimization-audit.md)
+- [`docs/data-exploration.md`](docs/data-exploration.md)
+
+---
+
+# ⚠️ Known Limitations
+
+See [`docs/limitations.md`](docs/limitations.md) for the full discussion.
+
+Key limitations include:
+
+### Historical labels are biased
+
+Past field visits are not a clean supervised-learning dataset. A gateway generally needed to be selected for a visit before an engineer could confirm its condition.
+
+### Economic assumptions
+
+V2's expected-value score uses assumed operational cost parameters. It should therefore be interpreted as a decision model, not a measured financial result.
+
+### Limited evaluation horizon
+
+The official 8-week evaluation window is short for drawing strong conclusions about long-term strategy superiority.
+
+### Telemetry ≠ customer impact
+
+A gateway can exhibit telemetry problems while local meter buffering or backfill protects downstream meter reads.
+
+---
+
+# 🚫 What This System Cannot Do
+
+The system should **not** be interpreted as:
+
+- a guarantee that a gateway will fail
+- a replacement for an engineer's diagnosis
+- a causal model of gateway failures
+- a perfectly calibrated probability of physical failure
+- proof that every selected visit will produce a repair
+- a substitute for operational judgement
+
+The ranking is a **decision-support mechanism** designed to prioritize limited field capacity using available evidence.
+
+---
+
+# 📚 Documentation
 
 | Document | Purpose |
-|----------|---------|
-| [`docs/architecture.md`](docs/architecture.md) | Package layout and design decisions |
-| [`docs/methodology.md`](docs/methodology.md) | Algorithm detail for V1, V2, Baseline |
-| [`docs/runbook.md`](docs/runbook.md) | How to run, reproduce, test |
-| [`docs/limitations.md`](docs/limitations.md) | Known limitations and failure modes |
-| [`DECISIONS.md`](DECISIONS.md) | Decision log |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | System architecture and design |
+| [`docs/methodology.md`](docs/methodology.md) | Ranking methodology |
+| [`docs/runbook.md`](docs/runbook.md) | Operational runbook |
+| [`docs/limitations.md`](docs/limitations.md) | Limitations and failure modes |
+| [`docs/optimization-analysis.md`](docs/optimization-analysis.md) | Optimization analysis |
+| [`docs/optimization-audit.md`](docs/optimization-audit.md) | Audit and robustness analysis |
+| [`DECISIONS.md`](DECISIONS.md) | Engineering decision log |
 | [`AI-USAGE.md`](AI-USAGE.md) | AI assistance disclosure |
+
+---
+
+# 🏁 Project Status
+
+| Component | Status |
+|---|:---:|
+| Part 1 — Gateway Ranking | ✅ **Complete / Frozen** |
+| Software Development — API | ✅ **Complete** |
+| V2 Statistical Challenger | ✅ **Complete** |
+| Architecture Refactor | ✅ **Complete** |
+| Test Reorganization | ✅ **Complete** |
+| Docker | ✅ **Complete** |
+| CI/CD | ✅ **Complete** |
+| Documentation | ✅ **Complete** |
+
+---
+
+## 👤 Submission
+
+**Challenge:** LPDG Innovation Hub Selection Challenge 2026  
+**Event:** NEXORA 2026  
+**Official Part 1 strategy:** V1 — Optimized Evidence
+
+---
+
+> **Design principle**
+>
+> **Rank what the evidence supports, expose the uncertainty, and make the system easy to change when the evidence changes.**
