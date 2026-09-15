@@ -37,7 +37,8 @@ jobs:
         run: |
           python -c "
           import hashlib, sys
-          h = hashlib.sha256(open('predictions.csv','rb').read()).hexdigest().upper()
+          content = open('predictions.csv','rb').read().replace(b'\\r\\n', b'\\n').replace(b'\\n', b'\\r\\n')
+          h = hashlib.sha256(content).hexdigest().upper()
           ref = '0F4D38C524EE8E224D321E6381A5CEF83BFC81EF4D0E9C2B466C8B402125F6D0'
           if h != ref:
               print(f'HASH MISMATCH: {h}')

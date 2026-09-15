@@ -55,7 +55,9 @@ def v2_frozen():
 
 
 def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest().upper()
+    # Hash a canonical CRLF representation so the guard is stable across platforms.
+    content = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    return hashlib.sha256(content).hexdigest().upper()
 
 
 # ---------------------------------------------------------------------------
