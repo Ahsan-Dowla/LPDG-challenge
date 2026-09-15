@@ -15,7 +15,7 @@ Client (HTTP / Tests / CLI)
           │
           ▼
    FastAPI Layer (`src/api/`)
-   - `routes.py`: Endpoint handlers (/health, /predictions, /gateways, /predict)
+   - `routes.py`: Endpoint handlers (/health, /predictions, /predictions/{week}/explain/{gw}, /gateways, /run, /predict)
    - `schemas.py`: Pydantic models enforcing payload validation and contracts
    - `app.py`: Factory, dependency injection, and centralized exception handling
           │
@@ -165,7 +165,72 @@ Once running, the interactive OpenAPI documentation is available at:
 
 ---
 
-### 3.4 Trigger Prediction Rerun
+### 3.4 Explain Gateway Ranking by Week Cutoff
+**`GET /predictions/{week_start}/explain/{gateway_id}`**
+
+- **Purpose**: Explains why a gateway is ranked at its position for a specific Monday cutoff week.
+- **Request Parameters**:
+  - `week_start` *(path parameter, string)*: Scored Monday cutoff (`YYYY-MM-DD`).
+  - `gateway_id` *(path parameter, string)*: 12-character hex ID (`02423E0E6E9F`) or colon-separated MAC.
+- **Response `200 OK`**:
+```json
+{
+  "gateway_id": "02423E0E6E9F",
+  "week_start": "2026-02-02",
+  "rank": 1,
+  "overall_rank": 1,
+  "score": 1.5913,
+  "reason": "Optimized V1: 77/77h observed impaired (offline_duration_sec), 91h silent of 168h expected; 297 meters exposed; score=1.5913.",
+  "details": {
+    "coverage_hours": 77,
+    "problem_hours": 77,
+    "silent_hours": 91,
+    "expected_hours": 168,
+    "worst_signal": "offline_duration_sec",
+    "n_meters_installed": 297,
+    "persistence_pct": 46
+  }
+}
+```
+- **Error Cases**:
+  - `400 Bad Request`: If `week_start` is not a valid scored prediction week.
+  - `404 Not Found`: If `gateway_id` was not found in the evaluated active set for that week.
+
+---
+
+### 3.5 Run Prediction Pipeline on Fresh Data
+**`POST /run`**
+
+- **Purpose**: Rereads fresh telemetry dropped into the mounted `data/` volume and reruns the ranking pipeline without requiring a container restart.
+- **Behavior**: Flushes cached data in memory, reads updated files from disk, re-evaluates all 8 scored weeks, and returns the top 15 recommendations for each week.
+- **Request Body**: None.
+- **Response `200 OK`**:
+```json
+{
+  "status": "success",
+  "strategy": "v1",
+  "weeks_predicted": [
+    "2026-02-02", "2026-02-09", "2026-02-16", "2026-02-23",
+    "2026-03-02", "2026-03-09", "2026-03-16", "2026-03-23"
+  ],
+  "total_predictions": 120,
+  "predictions": [
+    {
+      "week_start": "2026-02-02",
+      "rank": 1,
+      "gateway_id": "02423E0E6E9F",
+      "score": 1.5913,
+      "reason": "Optimized V1: 77/77h observed impaired..."
+    }
+  ]
+}
+```
+- **Error Cases**:
+  - `500 Internal Server Error`: If data directory is unreadable or calculation fails.
+
+---
+
+### 3.6 Trigger Prediction Rerun (Ad-hoc / Parameterized)
 **`POST /predict`**
 
 - **Purpose**: Explicitly reruns the prediction pipeline.

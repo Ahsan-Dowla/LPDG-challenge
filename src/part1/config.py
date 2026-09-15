@@ -24,4 +24,17 @@ OPT_W_EXPOSURE = 0.3      # exposure multiplier weight (0 → no exposure effect
 # Available strategy names
 STRATEGY_BASELINE = "baseline"
 STRATEGY_OPTIMIZED = "optimized"
+STRATEGY_V2 = "v2"
 DEFAULT_STRATEGY = STRATEGY_OPTIMIZED
+
+# V2 Probabilistic Ranker Parameters
+V2_PRIOR_ALPHA = 1.0
+V2_PRIOR_BETA = 9.0
+V2_COST_WASTED_VISIT = 380.0
+V2_COST_UNATTENDED_FAILURE = 600.0
+V2_W_EXPOSURE = 0.3
+V2_W_OFFLINE = 0.55
+V2_W_DISC = 0.35
+V2_W_CONN = 0.10
+V2_W_PERSISTENCE = 0.30
+V2_W_CORROBORATION = 0.15

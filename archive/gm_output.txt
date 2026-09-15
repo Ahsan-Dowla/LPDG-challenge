@@ -1,0 +1,109 @@
+﻿venv\Scripts\python.exe : <string>:27: Pandas4Warning: For backward compatibility, 'str' dtypes are included by select_dtypes when 'object' dtype is specified. This behavior is deprecated and 
+will be removed in a future version. Explicitly pass 'str' to `include` to select them, or to `exclude` to remove them and silence this warning.
+At line:1 char:1
++ venv\Scripts\python.exe -c "
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (<string>:27: Pa...e this warning.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+See https://pandas.pydata.org/docs/user_guide/migration-3-strings.html#string-migration-select-dtypes for details on how to write code that works with pandas 2 and 3.
+  for col in gm.select_dtypes(include='object').columns:
+ENCODING: cp1252
+ROWS: 332   COLS: 11
+COLUMNS: ['gateway_id', 'tenant', 'site_type', 'region', 'hw_model', 'antenna_type', 'fw_version', 'fw_updated_on', 'installed_on', 'decommissioned_on', 'n_meters_installed']
+
+NULLS:
+                   null_count  null_pct
+fw_updated_on             180     54.22
+decommissioned_on         320     96.39
+
+DUPE gateway_id: 0
+UNIQUE gateways: 332
+
+tenant:
+tenant
+tenant_a    193
+tenant_b     73
+tenant_c     42
+tenant_d     24
+
+site_type:
+site_type
+Geb├ñude          151
+Heizraum          61
+Au├ƒenmast         53
+Schaltschrank     45
+Kellerraum        22
+
+region:
+region
+Bayern                 69
+Nordrhein-Westfalen    64
+Baden-W├╝rttemberg      62
+Hessen                 56
+Niedersachsen          46
+Sachsen                35
+
+hw_model:
+hw_model
+GW-2100     182
+GW-2100L    101
+GW-3400      48
+GW-8800X      1
+
+antenna_type:
+antenna_type
+Omni 3dBi     131
+Omni 5dBi     107
+Panel 7dBi     58
+Yagi 9dBi      36
+
+fw_version:
+fw_version
+3.2.0     124
+2.15.1     86
+3.3.1      68
+2.14.3     54
+
+fw_updated_on:
+fw_updated_on
+NaN           180
+2025-11-10      8
+2025-11-21      8
+2025-11-24      8
+2025-11-23      7
+2025-11-19      7
+2025-11-07      7
+2025-11-13      7
+
+installed_on:
+installed_on
+2023-06-26    2
+2023-10-21    2
+2023-03-11    2
+2026-01-22    2
+2026-02-17    2
+2020-02-23    2
+2021-04-12    2
+2026-01-19    2
+
+decommissioned_on:
+decommissioned_on
+NaN           320
+2026-02-04      2
+2025-11-23      1
+2025-12-25      1
+2025-12-17      1
+2025-10-03      1
+2025-10-30      1
+2026-02-25      1
+
+n_meters_installed:
+count    332.00
+mean     189.00
+std      118.29
+min       40.00
+25%      110.00
+50%      156.00
+75%      241.00
+max      822.00

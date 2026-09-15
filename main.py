@@ -3,10 +3,12 @@
 
 Usage examples::
 
-    python main.py                                        # optimized (default)
-    python main.py --strategy optimized                   # explicit default
-    python main.py --strategy baseline                    # 3-sigma baseline
-    python main.py --data /path/to/data --out out.csv     # custom paths
+    python main.py                                   # v1/optimized (default)
+    python main.py --strategy v1                     # V1 explicit (canonical name)
+    python main.py --strategy optimized              # V1 alias (backward compat)
+    python main.py --strategy v2 --out predictions_v2.csv
+    python main.py --strategy baseline
+    python main.py --data /path/to/data --out out.csv
 """
 
 from __future__ import annotations
@@ -14,8 +16,16 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from src.part1.config import DEFAULT_STRATEGY, STRATEGY_BASELINE, STRATEGY_OPTIMIZED
+from src.part1.config import (
+    DEFAULT_STRATEGY,
+    STRATEGY_BASELINE,
+    STRATEGY_OPTIMIZED,
+    STRATEGY_V2,
+)
 from src.part1.pipeline import run
+
+# v1 is the canonical name for the optimized strategy
+STRATEGY_V1 = "v1"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,20 +35,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=here / "predictions.csv")
     parser.add_argument(
         "--strategy",
-        choices=[STRATEGY_BASELINE, STRATEGY_OPTIMIZED],
+        choices=[STRATEGY_BASELINE, STRATEGY_V1, STRATEGY_OPTIMIZED, STRATEGY_V2],
         default=DEFAULT_STRATEGY,
         help=(
             f"Ranking strategy to use. "
-            f"'{STRATEGY_BASELINE}': original 3-sigma anomaly-count ranker. "
-            f"'{STRATEGY_OPTIMIZED}': Optimization V1 (technical severity + "
-            f"persistence + corroboration + exposure). Default: {DEFAULT_STRATEGY}."
+            f"'v1' (or 'optimized'): Official Part 1 strategy -- Optimized Evidence "
+            f"(technical severity + persistence + corroboration + exposure). "
+            f"'baseline': Original 3-sigma anomaly-count ranker. "
+            f"'v2': Probabilistic V2 challenger (robust stats + Bayesian persistence "
+            f"+ expected-value decision score). Default: {DEFAULT_STRATEGY}."
         ),
     )
     args = parser.parse_args(argv)
 
-    predictions = run(args.data, args.out, strategy=args.strategy)
+    # Treat v1 as an alias for optimized (same frozen pipeline)
+    strategy = STRATEGY_OPTIMIZED if args.strategy == STRATEGY_V1 else args.strategy
+
+    predictions = run(args.data, args.out, strategy=strategy)
+    label = "v1" if strategy == STRATEGY_OPTIMIZED else strategy
     print(
-        f"[{args.strategy}] wrote {args.out} — {len(predictions)} rows over "
+        f"[{label}] wrote {args.out} -- {len(predictions)} rows over "
         f"{predictions['week_start'].nunique()} weeks"
     )
     return 0

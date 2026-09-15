@@ -59,7 +59,7 @@ To improve upon the baseline 3-sigma ranker without introducing black-box ML or 
 
 ## 11. Preserving Baseline Compatibility
 
-The codebase preserves the exact baseline algorithm under `--strategy baseline`. The CLI defaults to `--strategy optimized`. Both modes pass all schema and validation rules verified by `validate_submission.py`.
+The codebase preserves the exact baseline algorithm under `--strategy baseline`. The CLI defaults to V1 (--strategy v1), with optimized retained as a backward-compatible alias. Both modes pass all schema and validation rules verified by `validate_submission.py`.
 
 ## 12. Phase 1 Software Architecture & API Decoupling
 
@@ -67,3 +67,77 @@ The Web API layer (`src/api`) is strictly decoupled from the ranking formula. Th
 1. Swappability: Future Part 2 probabilistic models can be introduced with zero changes to API routes or error handling.
 2. Stability: The existing CLI (`main.py`) and validator (`validate_submission.py`) continue to run directly against the Part 1 pipeline with 100% backward compatibility.
 3. Information Hiding: Internal server details, stack traces, and filesystem paths are never leaked to API callers.
+
+## 13. Phase 2 Probabilistic & Expected-Value Ranking V2
+
+In Phase 2, we built **Gateway Ranking V2 (`src/part1/ranker_v2.py`)** evaluated as an operational decision system rather than an uncalibrated classifier:
+
+### 1. Robust Anomaly Scaling
+Gaussian $\mu \pm 3\sigma$ assumes normal distributions and breaks down when telemetry has heavy tails and extreme spikes (e.g. `offline_duration_sec` std of 1.2M vs median 0). V2 computes median absolute deviation (MAD) normalized robust $z$-scores:
+$$z = \frac{x - \text{median}}{1.4826 \cdot \text{MAD} + \epsilon}, \quad z_{\text{pos}} = \max(0, z)$$
+Only positive excess is treated as anomalous and normalized by active network maximum, yielding robust separation between healthy and degraded equipment.
+
+### 2. Bayesian Beta-Binomial Persistence & Silence Shrinkage
+Rather than computing raw ratio of problem hours over observed hours (which rewards gateways with sparse data, e.g. 5/5h = 100%), V2 uses a Bayesian Beta-Binomial posterior with prior $\text{Beta}(\alpha=1.0, \beta=9.0)$ and effective weekly sample size ($168\text{ h}$):
+$$p_{\text{persistence}} = \frac{\alpha + k_{\text{imp}}}{\alpha + \beta + \max(n_{\text{obs}}, 168)}$$
+Low-coverage gateways shrink heavily toward the healthy prior (e.g. 5/5h yields $p=0.33$, not $1.0$).
+
+### 3. Business Economics & Expected Value Decision Score
+The ranking score is directly formulated in expected financial value (€ saved by visiting):
+$$\mathbb{E}[\text{Value of Visit}] = P(\text{impaired}) \cdot [€600 \cdot (1 + 0.3 \cdot \text{exposure})] - [1 - P(\text{impaired})] \cdot €380$$
+Where €380 is the wasted visit cost, €600 is the unattended weekly failure cost, and exposure accounts for customer meter count.
+
+### 4. 22-Week Historical Time-Forward Backtest Evidence
+Across all 22 historical weeks (330 visits evaluated against following-week ground-truth meter reads):
+- **Precision@15 (Read < 80%)**: lifted from **84.8%** (V1) to **92.1%** (V2), capturing **24 additional severely degraded gateways** (304 vs 280).
+- **Precision@15 (Read < 50%, Blackouts)**: lifted from **57.0%** (V1) to **64.5%** (V2), capturing **25 additional blackout sites** (213 vs 188).
+- **Wasted Visits**: cut nearly in half from **50** down to **26** (wasted visit rate down from 15.2% to 7.9%).
+- **Net Economic Payoff**: increased by **+€23,520** (+15.8% payoff: €172,520 vs €149,000).
+- **Brier Score**: well-calibrated at **0.0838**.
+- **Scored Weeks**: maintains parity on confirmed bad gateways (89 Schlecht, 6 Normal, S/N = 14.83) while increasing visits with read rate $< 80\%$ from 83 to 88.
+
+
+## 14. V1 is the Official Part 1 Submission
+
+V1 (Optimized Evidence Ranker) is the officially submitted Part 1 answer.
+V2 is retained as an explicit, available challenger strategy.
+
+Reasons for not promoting V2 as the default:
+- The official 8-week evaluation showed V1 and V2 had identical engineer-confirmed
+  visit counts (89 Schlecht each, 6 vs 6 Normal). There was no measurable
+  operational difference in the evaluation window.
+- V2's backtest improvement (+EUR 23,520 simulated economic value) is a
+  *retrospective estimate on historical data* using assumed cost parameters
+  (EUR 380 wasted visit, EUR 600 unattended failure). These parameters were
+  not empirically derived.
+- The 8-week evaluation window is statistically too short to confidently
+  distinguish strategy superiority.
+- V1 is simpler, more interpretable, and its assumptions are more transparent.
+
+## 15. V2 is Retained as a Challenger
+
+V2 remains available via `--strategy v2` and `predictions_v2.csv` for:
+- Demonstrating probabilistic/expected-value decision framing.
+- Historical backtest analysis (22-week walk-forward evaluation).
+- Future evaluation if a longer operational window becomes available.
+
+V2 must not be described as superior to V1 based solely on backtest evidence.
+Both strategies are evaluated against biased labels (field visits can only
+confirm gateways that were already ranked highly), which limits the
+statistical validity of comparison.
+
+## 16. Economic Value Estimates are Simulated
+
+All references to "EUR savings" or "economic value" in V2 analysis are
+*simulated backtest estimates* based on assumed cost parameters.
+They are not realized operational savings. Documentation must reflect this.
+
+## 17. Backtest Evidence Interpretation
+
+The 22-week historical backtest evidence (Precision@15, Brier Score,
+wasted visit counts) should be understood as:
+- Computed on the same data used to inform the V2 formula design.
+  No strict holdout set was used.
+- Dependent on the field-visit ground truth, which is itself biased
+  (gateways can only be confirmed by visiting them).
+- Useful as directional signal, not as a guarantee of production performance.
