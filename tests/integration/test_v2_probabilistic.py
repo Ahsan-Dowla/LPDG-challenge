@@ -110,6 +110,7 @@ def test_v2_ranker_protocol_compliance():
     assert ranker.name == STRATEGY_V2
 
 
+@pytest.mark.challenge_data
 def test_v2_deterministic_ranking():
     """Verify V2 ranking is bit-for-bit identical across two independent runs."""
     from src.part1.data_loader import load_gateway_master, load_telemetry_extended
@@ -129,6 +130,7 @@ def test_v2_deterministic_ranking():
 # 4. Output Schema & Constraint Validation
 # ---------------------------------------------------------------------------
 
+@pytest.mark.challenge_data
 def test_v2_predictions_schema_and_constraints():
     """Verify V2 predictions satisfy all 8-week challenge constraints."""
     from src.part1.data_loader import load_gateway_master, load_telemetry_extended
@@ -160,6 +162,7 @@ def test_v2_predictions_schema_and_constraints():
 # 5. Temporal Leakage Safeguard Test
 # ---------------------------------------------------------------------------
 
+@pytest.mark.challenge_data
 def test_v2_no_future_data_leakage():
     """Verify predictions for week W are identical when future telemetry is purged."""
     from src.part1.data_loader import load_gateway_master, load_telemetry_extended
@@ -183,6 +186,7 @@ def test_v2_no_future_data_leakage():
 # 6. Service & API Integration Tests
 # ---------------------------------------------------------------------------
 
+@pytest.mark.challenge_data
 def test_service_with_v2_ranker():
     """Verify RankingService functions properly with V2ProbabilisticRanker."""
     service = RankingService(data_dir=DATA_DIR, ranker=V2ProbabilisticRanker())
@@ -201,6 +205,7 @@ def test_service_with_v2_ranker():
     assert "probability_impaired" in explanation["details"]
 
 
+@pytest.mark.challenge_data
 def test_api_with_v2_service():
     """Verify FastAPI endpoints operate correctly when injected with V2 service."""
     service = RankingService(data_dir=DATA_DIR, ranker=V2ProbabilisticRanker())
@@ -233,6 +238,7 @@ def test_api_with_v2_service():
 # 7. V1 Backward Compatibility Test
 # ---------------------------------------------------------------------------
 
+@pytest.mark.challenge_data
 def test_v1_compatibility_remains_frozen():
     """Verify V1 ranker continues to produce identical results as before."""
     from src.part1.data_loader import load_gateway_master, load_telemetry_extended

@@ -10,7 +10,6 @@ Verifies:
 from __future__ import annotations
 
 import shutil
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,11 +18,9 @@ from fastapi.testclient import TestClient
 
 from src.api.app import create_app
 from src.lpdg.config.settings import STRATEGY_V1
-from src.lpdg.exceptions import DataNotFoundError
 from src.services.ranking_service import RankingService
 
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 SCORED_WEEKS = [
     "2026-02-02", "2026-02-09", "2026-02-16", "2026-02-23",
     "2026-03-02", "2026-03-09", "2026-03-16", "2026-03-23",
@@ -38,9 +35,12 @@ def client() -> TestClient:
 
 
 @pytest.fixture
-def fresh_client() -> TestClient:
-    """Client with a freshly instantiated service (no warm cache)."""
-    service = RankingService(strategy=STRATEGY_V1)
+def fresh_client(synthetic_data_dir: Path, tmp_path: Path) -> TestClient:
+    """Client with a freshly instantiated service pointing to a mutable copy of synthetic data."""
+    # Copy synthetic fixture to tmp_path so cache flushing/file dropping tests are isolated
+    isolated_data = tmp_path / "data"
+    shutil.copytree(synthetic_data_dir, isolated_data)
+    service = RankingService(strategy=STRATEGY_V1, data_dir=isolated_data)
     app = create_app(service=service)
     return TestClient(app)
 

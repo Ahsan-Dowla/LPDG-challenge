@@ -14,9 +14,9 @@ from src.services.ranking_service import RankingService
 
 
 @pytest.fixture
-def client() -> TestClient:
-    """Default client connected to production application."""
-    return TestClient(app)
+def client(synthetic_client: TestClient) -> TestClient:
+    """Client connected to application configured with synthetic test fixtures."""
+    return synthetic_client
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +131,7 @@ def test_explain_gateway_colon_separated_id(client: TestClient) -> None:
     week = SCORED_WEEKS[0].isoformat()
     preds = client.get(f"/predictions/{week}").json()["predictions"]
     top_gw = preds[0]["gateway_id"]
-    # Convert "02423E0E6E9F" -> "02:42:3E:0E:6E:9F"
+    # Convert the synthetic canonical ID to colon-separated form.
     colon_id = ":".join(top_gw[i : i + 2] for i in range(0, 12, 2))
 
     response = client.get(f"/gateways/{colon_id}?week={week}")
@@ -150,7 +150,7 @@ def test_explain_gateway_unknown_id_returns_404(client: TestClient) -> None:
 
 def test_explain_gateway_invalid_week_returns_400(client: TestClient) -> None:
     """Invalid week parameter in gateway explanation returns 400."""
-    response = client.get("/gateways/02423E0E6E9F?week=bad-week")
+    response = client.get("/gateways/ABCDEF000001?week=bad-week")
     assert response.status_code == 400
     assert "detail" in response.json()
 

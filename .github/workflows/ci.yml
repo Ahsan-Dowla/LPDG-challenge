@@ -25,17 +25,13 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run test suite
-        run: python -m pytest -q --tb=short
+        run: python -m pytest -q -m "not challenge_data" --tb=short
 
       - name: Validate official V1 submission
-        run: |
-          python main.py --strategy v1
-          python validate_submission.py predictions.csv
+        run: python validate_submission.py predictions.csv
 
       - name: Validate V2 submission
-        run: |
-          python main.py --strategy v2 --out predictions_v2.csv
-          python validate_submission.py predictions_v2.csv
+        run: python validate_submission.py predictions_v2.csv
 
       - name: Verify frozen V1 output hash
         run: |

@@ -26,11 +26,15 @@ _V2_HASH = "B3CD9031CA3B71BC34A02EC854D3648A0ACBF585E5FA2DE84EE55A9D152C2652"
 
 @pytest.fixture(scope="module")
 def v1_predictions():
+    if not (DATA_DIR / "gateway_master.csv").exists():
+        pytest.skip("Challenge data directory not present (requires private dataset)")
     return RankingService(data_dir=DATA_DIR, strategy=V1Ranker()).predict_all()
 
 
 @pytest.fixture(scope="module")
 def v2_predictions():
+    if not (DATA_DIR / "gateway_master.csv").exists():
+        pytest.skip("Challenge data directory not present (requires private dataset)")
     return RankingService(data_dir=DATA_DIR, strategy=V2Ranker()).predict_all()
 
 
@@ -78,11 +82,13 @@ def test_v2_file_hash_unchanged():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.challenge_data
 def test_v1_shape(v1_predictions):
     assert len(v1_predictions) == VISITS_PER_WEEK * len(SCORED_WEEKS)
     assert v1_predictions["week_start"].nunique() == len(SCORED_WEEKS)
 
 
+@pytest.mark.challenge_data
 def test_v2_shape(v2_predictions):
     assert len(v2_predictions) == VISITS_PER_WEEK * len(SCORED_WEEKS)
     assert v2_predictions["week_start"].nunique() == len(SCORED_WEEKS)
@@ -93,12 +99,14 @@ def test_v2_shape(v2_predictions):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.challenge_data
 @pytest.mark.parametrize("week", SCORED_WEEKS)
 def test_v1_ranks_complete(v1_predictions, week):
     wdf = v1_predictions[v1_predictions["week_start"] == week.isoformat()]
     assert sorted(wdf["rank"].tolist()) == list(range(1, VISITS_PER_WEEK + 1))
 
 
+@pytest.mark.challenge_data
 @pytest.mark.parametrize("week", SCORED_WEEKS)
 def test_v2_ranks_complete(v2_predictions, week):
     wdf = v2_predictions[v2_predictions["week_start"] == week.isoformat()]
@@ -113,6 +121,7 @@ def test_v2_ranks_complete(v2_predictions, week):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.challenge_data
 def test_v1_live_matches_frozen(v1_predictions, v1_frozen):
     """Live V1 output must exactly match frozen reference across all 5 output columns."""
     live = v1_predictions.sort_values(["week_start", "rank"]).reset_index(drop=True)
@@ -147,6 +156,7 @@ def test_v1_live_matches_frozen(v1_predictions, v1_frozen):
     )
 
 
+@pytest.mark.challenge_data
 def test_v2_live_matches_frozen(v2_predictions, v2_frozen):
     """Live V2 output must exactly match frozen reference across all 5 output columns."""
     live = v2_predictions.sort_values(["week_start", "rank"]).reset_index(drop=True)
@@ -179,6 +189,7 @@ def test_v2_live_matches_frozen(v2_predictions, v2_frozen):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.challenge_data
 @pytest.mark.parametrize("week", SCORED_WEEKS)
 def test_v1_no_future_leakage(week):
     """V1 predictions must be identical with full vs strictly pre-cutoff telemetry."""
