@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -15,9 +16,11 @@ from .schemas import (
     PredictionRunRequest,
     PredictionRunResponse,
     PredictionsResponse,
+    RunResponse,
 )
 
 router = APIRouter()
+logger = logging.getLogger("lpdg.api.routes")
 
 
 def get_service() -> RankingService:
@@ -77,6 +80,50 @@ def explain_gateway(
 ) -> GatewayExplanationResponse:
     explanation = service.explain_gateway(gateway_id, week)
     return GatewayExplanationResponse(**explanation)
+
+
+@router.get(
+    "/predictions/{week_start}/explain/{gateway_id}",
+    response_model=GatewayExplanationResponse,
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid week or parameters"},
+        404: {"model": ErrorResponse, "description": "Gateway not found in active set for the week"},
+        500: {"model": ErrorResponse, "description": "Internal calculation error"},
+    },
+    summary="Explain Gateway Ranking for Given Week",
+    description="Explains why a gateway is ranked at its position for the specified Monday cutoff week.",
+)
+def explain_gateway_by_week(
+    week_start: str,
+    gateway_id: str,
+    service: Annotated[RankingService, Depends(get_service)],
+) -> GatewayExplanationResponse:
+    explanation = service.explain_gateway(gateway_id=gateway_id, week_input=week_start)
+    return GatewayExplanationResponse(**explanation)
+
+
+@router.post(
+    "/run",
+    response_model=RunResponse,
+    responses={
+        500: {"model": ErrorResponse, "description": "Pipeline execution failure or missing data"},
+    },
+    summary="Run Ranking Pipeline Rereading Fresh Mounted Data",
+    description="Flushes any cached telemetry and reruns the ranking pipeline across all scored weeks using fresh mounted data.",
+)
+def run_pipeline(
+    service: Annotated[RankingService, Depends(get_service)],
+) -> RunResponse:
+    logger.info("POST /run received: flushing cached telemetry and rereading fresh mounted data.")
+    service.reload_data()
+    result = service.run_prediction()
+    return RunResponse(
+        status=result["status"],
+        strategy=result["strategy"],
+        weeks_predicted=result["weeks_predicted"],
+        total_predictions=result["total_predictions"],
+        predictions=result["predictions"],
+    )
 
 
 @router.post(

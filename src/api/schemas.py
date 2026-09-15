@@ -86,6 +86,17 @@ class PredictResponse(BaseModel):
     predictions: list[PredictionItem] | None = None
 
 
+class RunResponse(BaseModel):
+    """Response payload for POST /run endpoint (fresh-data rerun)."""
+
+    model_config = ConfigDict(extra="forbid")
+    status: str
+    strategy: str
+    weeks_predicted: list[str]
+    total_predictions: int
+    predictions: list[PredictionItem]
+
+
 class ErrorResponse(BaseModel):
     """Standardized error response payload."""
 

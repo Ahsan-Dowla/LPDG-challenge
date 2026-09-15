@@ -59,6 +59,16 @@ class PredictionRunResponse(BaseModel):
     predictions: list[PredictionItem] = Field(..., description="Generated prediction records")
 
 
+class RunResponse(BaseModel):
+    """Response payload for POST /run endpoint."""
+    model_config = ConfigDict(extra="forbid")
+    status: str = Field(..., description="Execution status, e.g. 'success'")
+    strategy: str = Field(..., description="Ranking strategy executed")
+    weeks_predicted: list[str] = Field(..., description="List of week cutoffs processed")
+    total_predictions: int = Field(..., description="Total rows generated")
+    predictions: list[PredictionItem] = Field(..., description="Generated prediction records")
+
+
 class GatewayExplanationResponse(BaseModel):
     """Detailed operational explanation for a gateway's ranking."""
     model_config = ConfigDict(extra="forbid")

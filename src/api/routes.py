@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -13,10 +14,12 @@ from .schemas import (
     HealthResponse,
     PredictRequest,
     PredictResponse,
+    RunResponse,
     WeeklyPredictionResponse,
 )
 
 router = APIRouter()
+logger = logging.getLogger("gateway_api.routes")
 
 
 def get_service(request: Request) -> RankingService:
@@ -55,6 +58,21 @@ def get_predictions(
 
 
 @router.get(
+    "/predictions/{week_start}/explain/{gateway_id}",
+    response_model=GatewayExplanationResponse,
+    summary="Explain gateway ranking for a given week",
+    description="Explains why a gateway is ranked at its position for the specified Monday cutoff week.",
+)
+def explain_gateway_by_week(
+    week_start: str,
+    gateway_id: str,
+    service: Annotated[RankingService, Depends(get_service)],
+) -> GatewayExplanationResponse:
+    result = service.explain_gateway(gateway_id=gateway_id, week_input=week_start)
+    return GatewayExplanationResponse(**result)
+
+
+@router.get(
     "/gateways/{gateway_id}",
     response_model=GatewayExplanationResponse,
     summary="Explain gateway ranking",
@@ -70,6 +88,27 @@ def explain_gateway(
 ) -> GatewayExplanationResponse:
     result = service.explain_gateway(gateway_id=gateway_id, week_input=week)
     return GatewayExplanationResponse(**result)
+
+
+@router.post(
+    "/run",
+    response_model=RunResponse,
+    summary="Run ranking pipeline rereading fresh mounted data",
+    description="Flushes cached telemetry and reruns the ranking pipeline across all 8 scored weeks using fresh data from the mounted data/ directory.",
+)
+def run_pipeline(
+    service: Annotated[RankingService, Depends(get_service)],
+) -> RunResponse:
+    logger.info("POST /run: flushing cache and rereading fresh mounted data.")
+    service.reload_data()
+    result = service.run_prediction()
+    return RunResponse(
+        status=result["status"],
+        strategy=result["strategy"],
+        weeks_predicted=result["weeks_predicted"],
+        total_predictions=result["total_predictions"],
+        predictions=result["predictions"],
+    )
 
 
 @router.post(
